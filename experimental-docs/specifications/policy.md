@@ -34,7 +34,6 @@
   - [Metric Selectors](#metric-selectors)
 - [Trace Sampling Policy](#trace-sampling-policy)
   - [Trace Selectors](#trace-selectors)
-  - [Span Events](#span-events)
   - [Sampling Modes](#sampling-modes)
   - [Tracestate Handling](#tracestate-handling)
 - [Evaluation Model](#evaluation-model)
@@ -67,7 +66,6 @@
   - [An attribute path, with array indices](#an-attribute-path-with-array-indices)
   - [Metric granularity follows the matchers](#metric-granularity-follows-the-matchers)
   - [Scope fields are shared, resource schema URL is removed](#scope-fields-are-shared-resource-schema-url-is-removed)
-  - [Span events use an "any" quantifier, links are deferred](#span-events-use-an-any-quantifier-links-are-deferred)
   - [Log sampling and rate limiting are deferred](#log-sampling-and-rate-limiting-are-deferred)
   - [A transform inserts a typed value](#a-transform-inserts-a-typed-value)
   - [The transport is out of scope](#the-transport-is-out-of-scope)
@@ -600,7 +598,6 @@ names a span no longer in the stream. A consumer SHOULD document this effect.
 | `resource_attribute` | `AttributePath`   |
 | `scope_attribute`    | `AttributePath`   |
 | `scope_field`        | `ScopeField`      |
-| `event_attribute`    | `AttributePath`   |
 
 `SpanRecordField` values:
 
@@ -611,20 +608,7 @@ names a span no longer in the stream. A consumer SHOULD document this effect.
 | `SPAN_RECORD_FIELD_SPAN_ID`        | 16-character lowercase hexadecimal text.                                                                           |
 | `SPAN_RECORD_FIELD_PARENT_SPAN_ID` | 16-character lowercase hexadecimal text. A root span reads the empty text, and `exists` reports false.             |
 | `SPAN_RECORD_FIELD_TRACE_STATE`    | The W3C tracestate.                                                                                                |
-| `SPAN_RECORD_FIELD_STATUS_MESSAGE` | The status message.                                                                                                |
 | `SPAN_RECORD_FIELD_KIND`           | `"INTERNAL"`, `"SERVER"`, `"CLIENT"`, `"PRODUCER"`, or `"CONSUMER"`. A span with an unset kind reads `"INTERNAL"`. |
-| `SPAN_RECORD_FIELD_STATUS_CODE`    | `"UNSET"`, `"OK"`, or `"ERROR"`.                                                                                   |
-| `SPAN_RECORD_FIELD_EVENT_NAME`     | The name of a span event. See below.                                                                               |
-
-### Span Events
-
-`SPAN_RECORD_FIELD_EVENT_NAME` and `event_attribute` read the event list of the
-span. The quantifier is **any**: the matcher reports true when at least one
-event satisfies the predicate. A span with no event does not match.
-
-`negate` inverts the whole matcher, not the quantifier. A matcher with
-`event_name`, `equals: "exception"`, and `negate: true` therefore reports true
-for a span that carries no exception event.
 
 ### Sampling Modes
 
@@ -913,19 +897,6 @@ trace_sampling:
     percentage: 0.0
 ```
 
-**Keep every span that carries an exception event.**
-
-```yaml
-id: keep-spans-with-exceptions
-name: Keep spans with exception events
-trace_sampling:
-  matches:
-    - target: { record_field: SPAN_RECORD_FIELD_EVENT_NAME }
-      predicate: { equals: exception }
-  sampling:
-    percentage: 100.0
-```
-
 **Sample database spans at 5 percent.**
 
 ```yaml
@@ -1112,9 +1083,9 @@ same five-variant `oneof`. That removes five copies of the selector and the
 
 ### The target never carries the expected value
 
-**Decision.** A metric type, an aggregation temporality, a monotonicity flag, a
-span kind, and a span status code are all first-class **fields** on the
-selector, read by a normal predicate against their canonical uppercase name.
+**Decision.** A metric type, an aggregation temporality, a monotonicity flag,
+and a span kind are all first-class **fields** on the selector, read by a normal
+predicate against their canonical uppercase name.
 
 **Tradeoff.** `descriptor_field: TYPE` with `equals: "HISTOGRAM"` is longer to
 write than `metric_type: HISTOGRAM`, and it trades an enum for a string, so a
@@ -1215,19 +1186,6 @@ a selector for it would encode a dependency on a field that is on its way out.
 Sharing `ScopeField` also fixes an asymmetry in which the scope name and version
 were reachable for metrics and traces but not for logs.
 
-### Span events use an "any" quantifier, links are deferred
-
-**Decision.** `SPAN_RECORD_FIELD_EVENT_NAME` and `event_attribute` read the
-event list of the span. A matcher reports true when at least one event satisfies
-the predicate. Span links carry no selector.
-
-**Tradeoff.** "Every event satisfies the predicate" cannot be expressed, and
-`negate` inverts the whole matcher rather than the quantifier, which is easy to
-misread. The alternative is an explicit quantifier field, which doubles the
-surface for one use case. Events keep a selector because retaining a span that
-carries an exception event is a common, concrete need. Links have no comparable
-need yet and can be added later without a breaking change.
-
 ### Log sampling and rate limiting are deferred
 
 **Decision.** This version defines no percentage sampling and no rate limit for
@@ -1267,7 +1225,7 @@ change to the types defined here.
 
 | Feature                      | How it returns                                                  |
 | ---------------------------- | --------------------------------------------------------------- |
-| Deterministic span filtering | A `TraceFilterPolicy` with an `Action`, reusing `TraceMatcher`. |
+| Deterministic span filtering | A `TraceFilterPolicy` with an `Action` and post-completion span fields (status, events, links). |
 | Log percentage sampling      | A `LogSamplingPolicy` with a sampling configuration.            |
 | Log rate limiting            | A rate configuration on `LogSamplingPolicy`.                    |
 | Consistent sampling key      | A selector field on `LogSamplingPolicy`.                        |
