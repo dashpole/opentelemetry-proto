@@ -66,7 +66,7 @@
   * [The target never carries the expected value](#the-target-never-carries-the-expected-value)
   * [`exists` is `google.protobuf.Empty`](#exists-is-googleprotobufempty)
   * [A small predicate set](#a-small-predicate-set)
-  * [Mandatory `glob` and optional `regex` (RE2)](#mandatory-glob-and-optional-regex-re2)
+  * [Required `glob` and recommended (optional) `regex` (RE2)](#required-glob-and-recommended-optional-regex-re2)
   * [`regex` is an unanchored partial match](#regex-is-an-unanchored-partial-match)
   * [Identifier fields are matched as hexadecimal text](#identifier-fields-are-matched-as-hexadecimal-text)
   * [`contains` is typed and covers arrays](#contains-is-typed-and-covers-arrays)
@@ -255,7 +255,7 @@ A matcher MUST set exactly one predicate.
 | `lt`       | `NumericValue` | REQUIRED               | The target number is less than the argument.          |
 | `lte`      | `NumericValue` | REQUIRED               | The target number is less than or equal to it.        |
 | `contains` | `ScalarValue`  | REQUIRED               | The target value holds the scalar. See below.         |
-| `regex`    | string         | OPTIONAL               | The target string value satisfies the RE2 expression. |
+| `regex`    | string         | RECOMMENDED (OPTIONAL) | The target string value satisfies the RE2 expression. |
 
 #### **`exists`**
 
@@ -287,10 +287,10 @@ The meaning follows the type of the target value:
 
 #### **`regex`**
 
-Implementation support for `regex` is **OPTIONAL**. A consumer that does not
-support `regex` MUST reject any policy that uses it as a
-[compilation error](#compilation-errors) (keeping the entire policy inert) and
-MUST NOT ignore the matcher.
+Implementation support for `regex` is **RECOMMENDED** (`SHOULD`), though
+**OPTIONAL** for conformance. A consumer that does not support `regex` MUST
+reject any policy that uses it as a [compilation error](#compilation-errors)
+(keeping the entire policy inert) and MUST NOT ignore the matcher.
 
 When a consumer supports `regex`, it MUST use
 [RE2 syntax](https://github.com/google/re2/wiki/Syntax). The expression is an
@@ -564,11 +564,11 @@ unset) on string record fields (`LOG_RECORD_FIELD_SEVERITY_TEXT`,
 When `regex` is set, the consumer evaluates the
 [RE2 expression](https://github.com/google/re2/wiki/Syntax) against the current
 string value of the target. Implementation support for `LogRedact.regex` is
-**OPTIONAL**: a consumer that does not support `regex` MUST still support
-whole-field redaction (`regex` unset) and MUST reject any policy that sets
-`LogRedact.regex` as a [compilation error](#compilation-errors) (keeping the
-entire policy inert) rather than ignoring the operation or replacing the whole
-field value.
+**RECOMMENDED** (`SHOULD`), though **OPTIONAL** for conformance: a consumer that
+does not support `regex` MUST still support whole-field redaction (`regex`
+unset) and MUST reject any policy that sets `LogRedact.regex` as a
+[compilation error](#compilation-errors) (keeping the entire policy inert)
+rather than ignoring the operation or replacing the whole field value.
 
 When `regex` is supported and set:
 
@@ -1011,13 +1011,15 @@ A consumer conforms to this specification when it:
    keeps an invalid policy inert, and does not abort a valid policy in the same
    batch.
 
-A consumer MAY support a subset of the policy types and MAY omit optional
-capabilities (such as `Predicate.regex` and `LogRedact.regex`). When a policy
-uses a policy type, optional capability, target, operation, or wire field that
-the consumer does not support, the consumer MUST reject the entire policy as a
-[compilation error](#compilation-errors) (keeping the policy inert) and MUST NOT
-ignore an individual matcher or operation. A consumer MUST document every policy
-type and every optional capability it does not support.
+A consumer MAY support a subset of the policy types. Implementation support for
+`Predicate.regex` and `LogRedact.regex` is RECOMMENDED (`SHOULD`), though
+OPTIONAL for conformance; a consumer MAY omit optional capabilities when
+infeasible. When a policy uses a policy type, optional capability, target,
+operation, or wire field that the consumer does not support, the consumer MUST
+reject the entire policy as a [compilation error](#compilation-errors) (keeping
+the policy inert) and MUST NOT ignore an individual matcher or operation. A
+consumer MUST document every policy type and every optional capability it does
+not support.
 
 ## Implementation Notes
 
@@ -1027,9 +1029,13 @@ above imply but do not state, and it does not add a requirement.
 ### Choosing a Regular Expression Engine
 
 Implementation support for `Predicate.regex` and `LogRedact.regex` is
-**optional**. SDKs in languages without a standard-library linear-time RE2
-engine are not expected to add third-party regex dependencies; they implement
-`Predicate.glob` and reject policies that set `regex` at compilation time.
+**recommended** (`SHOULD`), though **optional** for conformance. Consumers that
+already include or can feasibly depend on a linear-time RE2-compatible engine
+(such as Collectors and SDKs in languages with native or lightweight RE2
+support) SHOULD support `regex`, whereas SDKs in languages without a
+standard-library linear-time RE2 engine may omit `regex` to avoid adding a
+third-party dependency, implementing `Predicate.glob` and rejecting policies
+that set `regex` at compilation time.
 
 For consumers that support `regex`, this document names RE2 as the required
 **syntax**, not as a required library. A consumer MAY use any engine that
@@ -1200,8 +1206,9 @@ negative with no agreed meaning, becomes unrepresentable.
 ### A small predicate set
 
 **Decision.** The predicate set is `exists`, `equals`, `glob`, `gt`, `gte`,
-`lt`, `lte`, `contains`, and optional `regex`. There is no `exact`, no
-`starts_with`, no `ends_with`, and no matcher-level `case_insensitive` flag.
+`lt`, `lte`, `contains`, and recommended (optional) `regex`. There is no
+`exact`, no `starts_with`, no `ends_with`, and no matcher-level
+`case_insensitive` flag.
 
 **Tradeoff.** A prefix match now reads `glob: "/api/*"` rather than
 `starts_with: "/api/"`, and a suffix match reads `glob: "*.json"` rather than
@@ -1210,23 +1217,23 @@ and test, while prefix and suffix patterns remain trivial for a consumer to
 recognize and optimize. `exact` is dropped entirely because `equals` with a
 `string_value` covers it.
 
-### Mandatory `glob` and optional `regex` (RE2)
+### Required `glob` and recommended (optional) `regex` (RE2)
 
 **Decision.** Every consumer MUST support `Predicate.glob` (`*` and `?` wildcard
 matching aligned with `IncludeExclude` in OpenTelemetry Declarative
-Configuration), whereas implementation support for `Predicate.regex` and
-`LogRedact.regex` (RE2 syntax) is optional. A consumer that does not support
-`regex` rejects any policy that uses it as a compilation error (keeping the
-entire policy inert).
+Configuration). Implementation support for `Predicate.regex` and
+`LogRedact.regex` (RE2 syntax) is RECOMMENDED (`SHOULD`), though OPTIONAL for
+conformance. A consumer that does not support `regex` rejects any policy that
+uses it as a compilation error (keeping the entire policy inert).
 
 **Tradeoff.** Most OpenTelemetry SDK languages ship backtracking PCRE-family
 regular expression engines in their standard libraries rather than linear-time
 RE2 engines, so requiring RE2 across all consumers would force most SDKs to add
 a third-party dependency. Wildcard `glob` matching is trivial to implement in
 every language with zero external dependencies and covers common attribute,
-name, and route matching, while optional `regex` covers unstructured log
-matching and substring redaction (`LogRedact`) for Collectors and SDKs that
-support RE2.
+name, and route matching, while recommended (optional) `regex` covers
+unstructured log matching and substring redaction (`LogRedact`) for Collectors
+and SDKs that support RE2.
 
 ### `regex` is an unanchored partial match
 

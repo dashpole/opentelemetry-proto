@@ -199,6 +199,10 @@ message Predicate {
     // "$" for a full match. Add the flag "(?i)" for a case-insensitive match.
     // The predicate applies only to a string target value.
     //
+    // Implementation support for regex is RECOMMENDED (optional for
+    // conformance). A consumer that does not support regex MUST reject any
+    // policy that uses it as a compilation error.
+    //
     // [Since next]
     string regex = 9;
   }
