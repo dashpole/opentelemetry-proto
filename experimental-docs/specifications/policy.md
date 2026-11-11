@@ -964,8 +964,8 @@ The consumer MUST continue to parse and run every other policy.
 A consumer validates each policy independently before it applies the policy to
 telemetry. A policy is invalid when any of these hold:
 
-| Condition                                                                    | Example                                            |
-| ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| Condition                                                        | Example                                            |
+| ---------------------------------------------------------------- | -------------------------------------------------- |
 | The policy `id` is empty or duplicated within a batch.           | `id: ""`                                           |
 | The policy `definition` is unset.                                | an empty `definition` oneof                        |
 | An enablement or filter policy has an empty `matches` list.      | `matches: []` on an enablement or filter policy    |
